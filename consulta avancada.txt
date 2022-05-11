@@ -1,0 +1,23 @@
+select cpf from mecanico join setor using (cods) where cods in (1 , 2)
+
+select cpf, nome from mecanico where cods in (select cods from setor where nome = 'Pintura' or nome = 'Funilaria' )
+
+select cpf, nome from mecanico inner join conserto using(codm) where data = '13/06/2014'
+
+select m.nome, c.nome, hora from ((mecanico m inner join conserto using(codm)) inner join veiculo using (codv)) inner join cliente c using (codc) where data = '12/06/2014'
+
+select m.nome, funcao, s.cods, s.nome from mecanico m left join setor s using (cods)
+
+select distinct nome, data from mecanico left join conserto using(codm)
+
+select avg(quilometragem) from veiculo
+
+select cidade ,sum(quilometragem) from cliente join veiculo using(codc) group by cidade
+
+select m.nome, count(m.nome) from mecanico m join conserto c using (codm) where data between '12/06/2014' and '19/06/2014' group by m.nome
+
+select marca, count(marca) from veiculo join conserto using(codv) group by (marca)
+
+select modelo, marca, ano from veiculo where quilometragem > (select avg(quilometragem) from veiculo)
+
+select nome,count(data),data from mecanico join conserto using(codm) group by codm,data having count(data) >= 2

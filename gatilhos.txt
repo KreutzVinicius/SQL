@@ -1,0 +1,231 @@
+create function checkCPF() returns trigger as
+$$
+declare 
+counter int default 0;
+reg record;
+begin
+	if new.CPF is null then
+		raise exception 'cpf cannot be null';
+	end if;
+	
+	for reg in select CPF from cliente loop
+		if reg.CPF = new.CPF then
+			counter = counter +1;
+		end if;
+	end loop;
+	
+	if counter != 0 then
+		raise exception 'cpf cannot be double';
+	end if;
+	
+	return new;
+end;
+$$
+language plpgsql;
+
+create trigger checkCPF before insert on cliente for each row execute procedure checkCPF();
+INSERT INTO cliente VALUES (8, '20000200000', 'Ana', 20, 'América', 'Joinville')
+
+--
+
+create function checkAge() returns trigger as
+$$
+declare 
+begin
+	if new.idade is null then
+		raise exception 'idade cannot be null';
+	end if;
+	
+	if new.idade < 20 then
+		raise exception 'idade cannot be lesser than 20';
+	end if;
+	
+	return new;
+end;
+$$
+language plpgsql;
+
+create trigger checkAge before insert on mecanico for each row execute procedure checkAge();
+INSERT INTO mecanico VALUES (7, '10000100002', 'João', 19, 'América', 'Joinville', 'som', 1)
+
+--
+
+create function getCods() returns trigger as
+$$
+begin
+	new.cods = (select max(cods) from setor) +1;
+	return new;
+end;
+$$
+language plpgsql;
+
+create trigger getCods before insert on setor for each row execute procedure getCods();
+INSERT INTO setor VALUES (1, 'Trocar roda')
+
+--
+
+create or replace function verificaCPF()
+returns trigger as $$
+declare 
+	cpf integer[11];
+	sequencia1 integer[] default array [10,9,8,7,6,5,4,3,2];
+	sequencia2 integer[] default array [11,10,9,8,7,6,5,4,3,2];
+	pdigito integer[9];
+	sdigito integer[10];
+	somapdigito integer default 0;
+	somasdigito integer default 0;
+	cont integer default 0;
+	resto integer;
+	digito integer;
+begin
+	for cont in 1..11 loop
+		cpf[cont] := cast(substring(new.cpf from cont for 1) as integer);
+	end loop;
+	for cont in 1..9 loop
+		pdigito[cont] := cpf[cont] * sequencia1[cont];
+		somapdigito := somapdigito + pdigito[cont];
+	end loop;
+	resto := somapdigito % 11;
+	if resto < 2 then
+		digito := 0;
+	else
+		digito := 11-resto;
+	end if;
+	if digito <> cpf[10] then
+		raise exception 'invalid cpf';
+	end if;
+	--verifica 2 digito
+	for cont in 1..10 loop
+		sdigito[cont] := cpf[cont] * sequencia2[cont];
+		somasdigito := somasdigito + sdigito[cont];
+	end loop;
+	resto := somasdigito % 11;
+	if resto < 2 then
+		digito := 0;
+	else
+		digito := 11-resto;
+	end if;
+	if digito <> cpf[11] then
+		raise exception 'invalid cpf';
+	end if;
+	return new;
+end;
+$$
+language plpgsql;
+
+create trigger verificaCPF before insert on mecanico for each row execute procedure verificaCPF();
+create trigger verificaCPF before insert on cliente for each row execute procedure verificaCPF();
+
+INSERT INTO mecanico VALUES (9, '02979520055', 'João', 40, 'América', 'Joinville', 'som', 1)
+
+--
+
+create or replace function checkMechanicalFunction() returns trigger as
+$$
+begin
+	if (select count(funcao) from mecanico where funcao like old.funcao) < 2 then
+		raise exception 'mechanical function is unique';
+	end if;
+	return old;
+end;
+$$
+language plpgsql;
+
+create trigger checkMechanicalFunction before delete on mecanico for each row execute procedure checkMechanicalFunction();
+delete from mecanico where codm = 4
+
+--
+
+create function getCodc() returns trigger as
+$$
+begin
+	new.codc = (select max(codc) from cliente) +1;
+	return new;
+end;
+$$
+language plpgsql;
+
+create trigger getCodc before insert on cliente for each row execute procedure getCodc();
+
+create or replace function mechanicalIsAClient()
+returns trigger as $$
+begin
+	if tg_op = 'DELETE' then
+		delete from cliente where cpf = old.cpf;
+		return old;
+		
+	elseif tg_op = 'UPDATE' then
+		if (select cpf from cliente where cpf = new.cpf) = null then
+		insert into cliente values (1, new.cpf, new.nome,new.idade,new.endereco, new.cidade);
+		return new;
+		else
+		update cliente set nome = new.nome, idade = new.idade, endereco = new.endereco, cidade = new.cidade where cpf = old.cpf;
+		return new;
+		end if;
+		
+	elseif tg_op = 'INSERT' then
+		insert into cliente values (1, new.cpf, new.nome,new.idade,new.endereco, new.cidade);
+		return new;
+	end if;
+	return null;
+end;
+$$
+language plpgsql;
+
+create trigger mechanicalIsAClient before insert or update or delete on mecanico for each row execute procedure mechanicalIsAClient();
+insert into mecanico values (8,'02978520055', 'AnAAa', 20, 'América', 'Joinville',1)
+update mecanico set nome = 'vini', idade = 21, endereco = 'Bom Retiro', cidade = 'Joinville',funcao = 2 where cpf = '02978520055'
+delete from mecanico where cpf = '02978520055'
+
+--
+create or replace function calcHoraExtra(pcodm int, pmes double precision, pano double precision)
+returns integer as $$
+declare
+horasTrab integer default 0;
+begin
+	select count(1) from conserto where codm = pcodm and 
+	date_part('month', data) = pmes and 
+	date_part('year', data) =pano into horasTrab;
+	if horasTrab > 1 then
+		return horasTrab - 1;
+	else
+		return 0;
+	end if;
+end;
+$$
+language plpgsql;
+select calcHoraExtra(2,6,2014)
+
+create or replace function getExtraTime()
+returns trigger as $$
+begin
+	if (select calcHoraExtra(new.codm, date_part('month', new.data),date_part('year', new.data)))<= 20 then	
+		return new;
+	else
+		return null;
+	end if;
+end;
+$$
+language plpgsql;
+
+create trigger getExtraTime before insert on conserto for each row execute procedure getExtraTime();
+insert into conserto values (2,6, '12/06/2014', '14:00')
+
+--
+
+create or replace function oneJobPerSetor()
+returns trigger as $$
+declare vcods integer;
+begin
+	select cods from mecanico where codm = new.codm limit 1 into vcods;
+	
+	if (select 1 from conserto join mecanico using(codm) where data = new.data and hora = new.hora and cods = vcods) then
+		return new;
+	end if;
+end;
+$$
+language plpgsql;
+
+
+create trigger oneJobPerSetor before insert on conserto for each row execute procedure oneJobPerSetor();
+insert into conserto values (2,6, '12/06/2014', '14:00')

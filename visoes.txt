@@ -1,0 +1,16 @@
+create view SetorMecanico(cods, nomeSetor, codm, cpf, nome, idade, endereco, cidade, funcao) as select s.cods, s.nome, codm, cpf, m.nome, idade, endereco, cidade, funcao from mecanico m left join setor s using (cods)
+
+create view ClienteVeiculo(codc, cpf, nome, idade, endereco, cidade, codv, renavam, modelo, marca, ano, quilometragem) as select c.codc, cpf, nome, idade, endereco, cidade, codv, renavam, modelo, marca, ano, quilometragem from cliente c, veiculo v where c.codc = v.codc
+
+create view MecanicoConsertoVeiculo(codm, nomemecanico, funcao, cods, nomesetor, codc, nomecliente, codv,modelo, data, hora) as select m.codm, m.nome, m.funcao ,m.cods, m.nomeSetor, c.codc, c.nome, c.codv, modelo, data, hora from conserto s, ClienteVeiculo c, SetorMecanico m  where m.codm = s.codm and c.codv = s.codv
+
+
+select nome,funcao from SetorMecanico
+select modelo, marca, nome from ClienteVeiculo
+select nomemecanico, nomecliente, modelo, data, hora from MecanicoConsertoVeiculo
+select ano, avg(quilometragem) as mediaQuilometragem from ClienteVeiculo group by ano
+select nomemecanico, count(data), data from MecanicoConsertoVeiculo group by nomemecanico, data
+select nomesetor, count(data), data from MecanicoConsertoVeiculo group by nomesetor, data 
+select funcao, count(funcao) from SetorMecanico group by funcao
+select nome, funcao, cods, nomeSetor from SetorMecanico
+select funcao, count(data), data from MecanicoConsertoVeiculo group by funcao,data

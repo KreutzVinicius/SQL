@@ -1,0 +1,253 @@
+--1
+create or replace function newMechanical( 
+  codm integer, 
+  cpf char(11),
+  nome character varying(50),
+  idade integer,
+  endereco character varying(500),
+  cidade character varying(500),
+  funcao character varying(50),
+  cods integer) returns void as 
+$$
+	insert into mecanico values (codm, cpf, nome,idade, endereco,cidade,funcao,cods);
+$$
+language sql
+
+select newMechanical(6, '10000123000', 'Vinicius', 21, 'Bom Retiro', 'Joinville', 'som', 1)
+
+--2
+create or replace function deleteMechanical(
+	ide integer
+) returns void as 
+$$
+	delete from mecanico where codm = ide;
+$$
+language sql
+
+select deleteMechanical(6)
+
+--3
+create or replace function handleClient(
+  todo integer,
+  codcl integer,
+  cpf char(11),
+  nomec character varying(50),
+  idadec integer,
+  enderecoc character varying(500),
+  cidadec character varying(500)
+) returns void as $$
+begin
+	if  (todo = 1)
+	then
+	--insercao
+		insert into cliente
+		values (codcl ,cpf, nomec, idadec, enderecoc ,cidadec);
+	elseif (todo = 2)
+	then
+	--alteracao
+	update cliente
+		set nome = nomec,
+		idade = idadec,
+		endereco = enderecoc,
+		cidade = cidadec
+		where codc = codcl;
+	elseif (todo = 3)
+	then
+	--remocao
+		delete from cliente where codc = codcl;
+	end if;
+	end;
+$$
+language plpgsql;
+
+select handleClient(1,8, '20003200005', 'Vinicius', 20, 'América', 'Joinville')
+
+select handleClient(2,8, '20003200005', 'Vinicius', 21, 'América', 'Joinville')
+
+select handleClient(3,8, null,null,null,null,null)
+
+--4
+create or replace function newSetor(
+  codse integer,
+  nome character varying(50)
+) returns void as $$
+begin
+	if (select count(cods) from setor) < 10
+	then 
+	insert into setor values (codse, nome);
+	end if;
+end;
+$$
+language plpgsql;
+
+
+select newSetor(5,'Martelinho');
+
+--5
+create or replace function newConserto(
+  codme integer,
+  codv integer,
+  newdata date,
+  hora time
+) returns void as $$
+begin
+	if (select count(codm) from conserto where codm = codme and data = newdata)< 3
+	then 
+	insert into conserto values (codme, codv, data, hora);
+	end if;
+end;
+$$
+language plpgsql;
+
+
+select newConserto(3, 1, '19/06/2014', '18:00')
+
+--6
+
+create or replace function mediaIdade()
+returns float as $$
+declare
+clie float;
+meca float;
+begin
+	select avg(idade) from cliente into clie;
+	select avg(idade) from mecanico into meca;
+	return (clie+meca)/2;
+end;
+$$
+language plpgsql;
+
+select mediaIdade()
+
+--7
+
+create or replace function deleteSomething(
+  todo integer,
+  cod integer
+) returns void as $$
+begin
+	if  (todo = 1)
+	then
+	--Setor
+		delete from setor where cod = cods;
+	elseif (todo = 2)
+	then
+	--Mecanico
+		delete from mecanico where cod = codm;
+	elseif (todo = 3)
+	then
+	--Cliente
+		delete from cliente where cod = codc;
+	elseif (todo=4)
+	then
+	--Veiculo
+		delete from veiculo where cod = codv;
+	end if;
+	end;
+$$
+language plpgsql;
+
+select deleteSomething(1,4)
+select deleteSomething(2,5)
+
+--8
+
+create or replace function removeCPF()
+returns void as $$
+declare 
+counter int;
+reg record;
+reg2 record;
+begin
+	for reg in select codc, cpf from cliente loop
+		counter = 0;
+		for reg2 in select codc, cpf from cliente loop
+			if (reg.cpf = reg2.cpf)
+			then
+				counter = counter + 1;
+			end if;
+
+			if (counter > 1)
+			then
+				delete from cliente where codc = reg.codc;
+			end if;
+		end loop;
+	end loop;
+end;
+$$
+language plpgsql;
+
+select removeCPF()
+
+--9
+create or replace function verificaCPF(p_cpf text)
+returns boolean as $$
+declare 
+	cpf integer[11];
+	sequencia1 integer[] default array [10,9,8,7,6,5,4,3,2];
+	sequencia2 integer[] default array [11,10,9,8,7,6,5,4,3,2];
+	pdigito integer[9];
+	sdigito integer[10];
+	somapdigito integer default 0;
+	somasdigito integer default 0;
+	cont integer default 0;
+	resto integer;
+	digito integer;
+begin
+	for cont in 1..11 loop
+		cpf[cont] := cast(substring(p_cpf from cont for 1) as integer);
+	end loop;
+	for cont in 1..9 loop
+		pdigito[cont] := cpf[cont] * sequencia1[cont];
+		somapdigito := somapdigito + pdigito[cont];
+	end loop;
+	resto := somapdigito % 11;
+	if resto < 2 then
+		digito := 0;
+	else
+		digito := 11-resto;
+	end if;
+	if digito <> cpf[10] then
+		return false;
+	end if;
+	--verifica 2 digito
+	for cont in 1..10 loop
+		sdigito[cont] := cpf[cont] * sequencia2[cont];
+		somasdigito := somasdigito + sdigito[cont];
+	end loop;
+	resto := somasdigito % 11;
+	if resto < 2 then
+		digito := 0;
+	else
+		digito := 11-resto;
+	end if;
+	if digito <> cpf[11] then
+		return false;
+	end if;
+	return true;
+end;
+$$
+language plpgsql;
+
+select verificaCPF('12233344405')
+
+--10
+
+create or replace function calcHoraExtra(pcodm int, pmes int, pano int)
+returns integer as $$
+declare
+horasTrab integer default 0;
+begin
+	select count(1) from conserto where codm = pcodm and 
+	date_part('month', data) = pmes and 
+	date_part('year', data) =pano into horasTrab;
+	if horasTrab > 160 then
+		return horasTrab - 160;
+	else
+		return 0;
+	end if;
+end;
+$$
+language plpgsql;
+
+select calcHoraExtra(2,6,2014)
